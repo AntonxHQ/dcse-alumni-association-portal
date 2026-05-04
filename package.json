@@ -1,0 +1,48 @@
+{
+  "name": "dcse-alumni-portal",
+  "version": "1.0.0",
+  "description": "CSE Alumni portal scaffold",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "echo \"No tests configured yet\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@hookform/resolvers": "^5.2.2",
+    "@react-email/components": "^1.0.12",
+    "@react-email/render": "^2.0.8",
+    "@supabase/ssr": "^0.10.2",
+    "@supabase/supabase-js": "^2.105.1",
+    "@tiptap/extension-placeholder": "^3.22.5",
+    "@tiptap/pm": "^3.22.5",
+    "@tiptap/react": "^3.22.5",
+    "@tiptap/starter-kit": "^3.22.5",
+    "country-state-city": "^3.2.1",
+    "lucide-react": "^1.14.0",
+    "next": "^16.2.4",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "react-email": "^6.0.5",
+    "react-hook-form": "^7.74.0",
+    "recharts": "^3.8.1",
+    "sonner": "^2.0.7",
+    "zod": "^4.4.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.2.4",
+    "@types/node": "^25.6.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "eslint": "^9.39.4",
+    "eslint-config-next": "^16.2.4",
+    "tailwindcss": "^4.2.4",
+    "tailwindcss-animate": "^1.0.7",
+    "typescript": "^6.0.3"
+  }
+}

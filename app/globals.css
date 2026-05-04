@@ -1,0 +1,131 @@
+@import "tailwindcss";
+
+/* Supabase-style dark theme (default) */
+:root {
+  --background: 220 13% 11%;
+  --background-alt: 220 13% 9%;
+  --surface-75: 220 13% 11%;
+  --surface-100: 220 13% 14%;
+  --surface-200: 220 13% 16%;
+  --surface-300: 220 13% 19%;
+  --surface-400: 220 10% 24%;
+  --dash-sidebar: 220 13% 9%;
+  --dash-canvas: 220 13% 11%;
+  --overlay: 220 13% 11%;
+  --foreground: 0 0% 93%;
+  --foreground-light: 0 0% 67%;
+  --foreground-lighter: 0 0% 43%;
+  --foreground-muted: 0 0% 29%;
+  --foreground-contrast: 0 0% 100%;
+  --brand: 152 60% 53%;
+  --brand-600: 152 60% 44%;
+  --border: 220 10% 18%;
+  --border-muted: 220 13% 14%;
+  --border-secondary: 220 10% 22%;
+  --border-strong: 220 10% 29%;
+  --border-control: 220 10% 22%;
+  --border-overlay: 220 10% 18%;
+  --destructive: 0 70% 71%;
+  --destructive-bg: 0 60% 12%;
+  --warning: 45 96% 56%;
+  --warning-bg: 35 80% 10%;
+  --button: 220 13% 16%;
+  --radius: 0.5rem;
+  --card: hsl(var(--surface-100));
+  --card-foreground: hsl(var(--foreground));
+  --popover: hsl(var(--surface-200));
+  --popover-foreground: hsl(var(--foreground));
+  --primary: hsl(var(--brand));
+  --primary-foreground: hsl(var(--foreground-contrast));
+  --secondary: hsl(var(--surface-300));
+  --secondary-foreground: hsl(var(--foreground));
+  --muted: hsl(var(--surface-200));
+  --muted-foreground: hsl(var(--foreground-lighter));
+  --accent: hsl(var(--surface-300));
+  --accent-foreground: hsl(var(--foreground));
+  --destructive-foreground: hsl(var(--foreground-contrast));
+  --input: hsl(var(--border-control));
+  --ring: hsl(var(--brand));
+}
+
+.light {
+  --background: 0 0% 99%;
+  --surface-100: 0 0% 97%;
+  --surface-200: 0 0% 94%;
+  --surface-300: 0 0% 91%;
+  --foreground: 220 13% 10%;
+  --foreground-light: 220 10% 40%;
+  --foreground-lighter: 220 10% 60%;
+  --border: 220 13% 88%;
+  --border-muted: 220 13% 92%;
+  --border-secondary: 220 13% 84%;
+  --border-control: 220 13% 84%;
+}
+
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-background-alt: hsl(var(--background-alt));
+  --color-surface-75: hsl(var(--surface-75));
+  --color-surface-100: hsl(var(--surface-100));
+  --color-surface-200: hsl(var(--surface-200));
+  --color-surface-300: hsl(var(--surface-300));
+  --color-surface-400: hsl(var(--surface-400));
+  --color-dash-sidebar: hsl(var(--dash-sidebar));
+  --color-dash-canvas: hsl(var(--dash-canvas));
+  --color-foreground: hsl(var(--foreground));
+  --color-foreground-light: hsl(var(--foreground-light));
+  --color-foreground-lighter: hsl(var(--foreground-lighter));
+  --color-foreground-muted: hsl(var(--foreground-muted));
+  --color-foreground-contrast: hsl(var(--foreground-contrast));
+  --color-brand: hsl(var(--brand));
+  --color-brand-600: hsl(var(--brand-600));
+  --color-border: hsl(var(--border));
+  --color-default: hsl(var(--border));
+  --color-border-muted: hsl(var(--border-muted));
+  --color-border-secondary: hsl(var(--border-secondary));
+  --color-border-strong: hsl(var(--border-strong));
+  --color-border-control: hsl(var(--border-control));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-bg: hsl(var(--destructive-bg));
+  --color-warning: hsl(var(--warning));
+  --color-warning-bg: hsl(var(--warning-bg));
+  --color-button: hsl(var(--button));
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+  --radius: 0.5rem;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  @apply bg-background text-foreground;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+input,
+textarea,
+select {
+  @apply w-full rounded-md border border-border-control bg-surface-200 px-3 py-2 text-sm text-foreground placeholder:text-foreground-lighter outline-none transition-colors duration-150 focus:border-brand;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--background));
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border-secondary));
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--border-strong));
+}
