@@ -59,7 +59,7 @@ export function BatchBarChart({ data, title }: Readonly<{ data: BatchPoint[]; ti
               color: '#EDEDED',
             }}
             cursor={{ fill: 'rgba(62,207,142,0.06)' }}
-            formatter={(value: number) => [value, 'Alumni']}
+            formatter={(value) => [value, 'Alumni']}
           />
           <Bar dataKey="count" fill="#3ECF8E" radius={[4, 4, 0, 0]} />
         </BarChart>
