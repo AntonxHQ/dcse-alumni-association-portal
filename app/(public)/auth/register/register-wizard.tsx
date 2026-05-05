@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { ArrowRight, CheckCircle2, Clock, Loader2, Mail, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, type Resolver } from 'react-hook-form';
 
 import {
     completeStep1,
@@ -117,7 +117,7 @@ export function RegisterWizard({ resumeData }: { resumeData?: ResumeData }) {
     const defaultValues = buildDefaults(resumeData);
 
     const form = useForm<RegistrationFormData>({
-        resolver: zodResolver(registrationSchema),
+        resolver: zodResolver(registrationSchema) as Resolver<RegistrationFormData>,
         defaultValues,
         mode: 'onTouched',
     });

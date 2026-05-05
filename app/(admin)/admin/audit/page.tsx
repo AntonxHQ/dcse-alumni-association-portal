@@ -74,7 +74,8 @@ export default async function AuditLogPage({
               </tr>
             ) : (
               (logs ?? []).map((log) => {
-                const profile = log.profiles as { full_name: string | null } | null;
+                const rawProfile = Array.isArray(log.profiles) ? log.profiles[0] : log.profiles;
+                const profile = rawProfile as { full_name: string | null } | null;
                 return (
                   <tr key={log.id} className="border-b border-muted last:border-0 hover:bg-surface-400">
                     <td className="px-4 py-3 font-mono text-xs text-foreground-lighter whitespace-nowrap">
