@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { Search, Download, Upload, Check, X, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Download, Upload, Check, X, Eye, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
@@ -47,6 +47,9 @@ export function AlumniTable({
   const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [importing, setImporting] = useState(false);
+  const [bulkApproving, setBulkApproving] = useState(false);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [suspendingId, setSuspendingId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState('');
 
@@ -88,20 +91,35 @@ export function AlumniTable({
   };
 
   const handleApprove = async (id: string) => {
-    const res = await fetch(`/api/admin/alumni/${id}/approve`, { method: 'POST' });
-    if (res.ok) { toast.success('Alumni approved'); router.refresh(); }
-    else toast.error('Failed to approve');
+    setApprovingId(id);
+    try {
+      const res = await fetch(`/api/admin/alumni/${id}/approve`, { method: 'POST' });
+      if (res.ok) { toast.success('Alumni approved'); router.refresh(); }
+      else toast.error('Failed to approve');
+    } finally {
+      setApprovingId(null);
+    }
   };
 
   const handleSuspend = async (id: string) => {
-    const res = await fetch(`/api/admin/alumni/${id}/suspend`, { method: 'POST' });
-    if (res.ok) { toast.success('Alumni suspended'); router.refresh(); }
-    else toast.error('Failed to suspend');
+    setSuspendingId(id);
+    try {
+      const res = await fetch(`/api/admin/alumni/${id}/suspend`, { method: 'POST' });
+      if (res.ok) { toast.success('Alumni suspended'); router.refresh(); }
+      else toast.error('Failed to suspend');
+    } finally {
+      setSuspendingId(null);
+    }
   };
 
   const handleBulkApprove = async () => {
-    for (const id of selected) await handleApprove(id);
-    setSelected(new Set());
+    setBulkApproving(true);
+    try {
+      for (const id of selected) await handleApprove(id);
+      setSelected(new Set());
+    } finally {
+      setBulkApproving(false);
+    }
   };
 
   const handleExport = () => {
@@ -167,8 +185,8 @@ export function AlumniTable({
           disabled={importing}
           className="flex items-center gap-2 rounded-md border border-border-secondary bg-button px-3 py-2 text-sm font-medium text-foreground hover:bg-surface-300 disabled:opacity-60"
         >
-          <Upload className="h-4 w-4" />
-          Import CSV
+          {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+          {importing ? 'Importing…' : 'Import CSV'}
         </button>
         <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={handleImport} />
       </div>
@@ -260,20 +278,22 @@ export function AlumniTable({
                         <button
                           type="button"
                           onClick={() => handleApprove(a.id)}
+                          disabled={approvingId === a.id}
                           title="Approve"
-                          className="rounded p-1.5 text-foreground-lighter hover:bg-surface-300 hover:text-brand"
+                          className="rounded p-1.5 text-foreground-lighter hover:bg-surface-300 hover:text-brand disabled:opacity-50"
                         >
-                          <Check className="h-4 w-4" />
+                          {approvingId === a.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                         </button>
                       )}
                       {a.status !== 'suspended' && (
                         <button
                           type="button"
                           onClick={() => handleSuspend(a.id)}
+                          disabled={suspendingId === a.id}
                           title="Suspend"
-                          className="rounded p-1.5 text-foreground-lighter hover:bg-surface-300 hover:text-destructive"
+                          className="rounded p-1.5 text-foreground-lighter hover:bg-surface-300 hover:text-destructive disabled:opacity-50"
                         >
-                          <X className="h-4 w-4" />
+                          {suspendingId === a.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
                         </button>
                       )}
                       <a
@@ -328,9 +348,16 @@ export function AlumniTable({
           <button
             type="button"
             onClick={handleBulkApprove}
-            className="rounded-md border border-border-secondary bg-button px-3 py-1.5 text-xs font-medium text-foreground hover:bg-surface-300"
+            disabled={bulkApproving}
+            className="flex items-center gap-1.5 rounded-md border border-border-secondary bg-button px-3 py-1.5 text-xs font-medium text-foreground hover:bg-surface-300 disabled:opacity-60"
           >
-            Bulk Approve
+            {bulkApproving ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Approving…
+              </>
+            ) : (
+              'Bulk Approve'
+            )}
           </button>
           <button
             type="button"

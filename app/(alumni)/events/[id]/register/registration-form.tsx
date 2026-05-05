@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { CheckCircle, Clock, Minus, Plus } from 'lucide-react';
+import { CheckCircle, Clock, Loader2, Minus, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { registerForEvent } from './actions';
 
@@ -170,9 +170,15 @@ export function RegistrationForm({
       <button
         type="submit"
         disabled={loading}
-        className="mt-6 flex w-full items-center justify-center rounded-full bg-brand px-4 py-2 text-sm font-medium text-foreground-contrast transition-colors hover:bg-brand-600 disabled:opacity-60"
+        className="mt-6 flex w-full items-center justify-center gap-2 rounded-full bg-brand px-4 py-2 text-sm font-medium text-foreground-contrast transition-colors hover:bg-brand-600 disabled:opacity-60"
       >
-        {loading ? 'Processing…' : isFull ? 'Join Waitlist' : 'Register for Event'}
+        {loading ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" /> Processing…
+          </>
+        ) : (
+          <>{isFull ? 'Join Waitlist' : 'Register for Event'}</>
+        )}
       </button>
     </form>
   );

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useActionState } from 'react';
 import { useState } from 'react';
+import { Loader2 } from 'lucide-react';
 
 import { resetPasswordAction, type ResetPasswordState } from './actions';
 
@@ -55,7 +56,13 @@ export function ResetPasswordForm({ tokenHash, type }: ResetPasswordFormProps) {
         disabled={isPending}
         type="submit"
       >
-        {isPending ? 'Updating password...' : 'Update password'}
+        {isPending ? (
+          <span className="inline-flex items-center justify-center gap-2">
+            <Loader2 className="h-4 w-4 animate-spin" /> Updating password…
+          </span>
+        ) : (
+          'Update password'
+        )}
       </button>
     </form>
   );

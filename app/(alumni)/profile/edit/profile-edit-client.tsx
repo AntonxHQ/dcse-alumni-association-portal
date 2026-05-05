@@ -1,6 +1,6 @@
 'use client';
 
-import { Camera, Lock, Plus, Trash2, Users, X } from 'lucide-react';
+import { Camera, Loader2, Lock, Plus, Trash2, Users, X } from 'lucide-react';
 import Image from 'next/image';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -112,12 +112,18 @@ function Field({ label, children, optional }: { label: string; children: React.R
 function SaveBtn({ onClick, loading }: { onClick: () => void; loading?: boolean }) {
   return (
     <button
-      className="rounded-md border border-secondary bg-button px-3.5 py-2 text-sm font-medium text-foreground transition-colors hover:border-strong hover:bg-surface-300 disabled:opacity-60"
+      className="inline-flex items-center gap-2 rounded-md border border-secondary bg-button px-3.5 py-2 text-sm font-medium text-foreground transition-colors hover:border-strong hover:bg-surface-300 disabled:opacity-60"
       disabled={loading}
       onClick={onClick}
       type="button"
     >
-      {loading ? 'Saving…' : 'Save'}
+      {loading ? (
+        <>
+          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…
+        </>
+      ) : (
+        'Save'
+      )}
     </button>
   );
 }
@@ -252,8 +258,8 @@ export function ProfileEditClient({ initial }: { initial: ProfileEditData }) {
           ) : (
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-surface-300 text-lg font-medium text-foreground-light">{initials}</div>
           )}
-          <label className={`inline-flex cursor-pointer items-center gap-2 rounded-md border border-secondary bg-button px-3.5 py-2 text-sm font-medium text-foreground transition-colors hover:border-strong hover:bg-surface-300 ${avatarUploading ? 'opacity-60 pointer-events-none' : ''}`}>
-            <Camera className="h-4 w-4" />
+          <label className={`inline-flex cursor-pointer items-center gap-2 rounded-md border border-secondary bg-button px-3.5 py-2 text-sm font-medium text-foreground transition-colors hover:border-strong hover:bg-surface-300 ${avatarUploading ? 'pointer-events-none opacity-60' : ''}`}>
+            {avatarUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
             {avatarUploading ? 'Uploading…' : 'Upload photo'}
             <input className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void onUploadAvatar(f); }} type="file" accept="image/jpeg,image/png" />
           </label>

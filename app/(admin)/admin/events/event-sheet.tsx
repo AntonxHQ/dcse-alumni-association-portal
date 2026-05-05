@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { Loader2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { TiptapEditor } from '../../../../components/events/tiptap-editor';
@@ -243,17 +243,29 @@ export function EventSheet({
             type="button"
             onClick={() => handleSave(true)}
             disabled={saving || !form.title}
-            className="flex-1 rounded-full bg-brand py-2 text-sm font-medium text-foreground-contrast transition-colors hover:bg-brand-600 disabled:opacity-60"
+            className="flex-1 inline-flex items-center justify-center gap-2 rounded-full bg-brand py-2 text-sm font-medium text-foreground-contrast transition-colors hover:bg-brand-600 disabled:opacity-60"
           >
-            {saving ? 'Saving…' : 'Save event'}
+            {saving ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" /> Saving…
+              </>
+            ) : (
+              'Save event'
+            )}
           </button>
           <button
             type="button"
             onClick={() => handleSave(false)}
             disabled={saving || !form.title}
-            className="flex-1 rounded-md border border-border-secondary bg-button py-2 text-sm font-medium text-foreground transition-colors hover:bg-surface-300 disabled:opacity-60"
+            className="flex-1 inline-flex items-center justify-center gap-2 rounded-md border border-border-secondary bg-button py-2 text-sm font-medium text-foreground transition-colors hover:bg-surface-300 disabled:opacity-60"
           >
-            Save as draft
+            {saving ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" /> Saving…
+              </>
+            ) : (
+              'Save as draft'
+            )}
           </button>
         </div>
       </div>

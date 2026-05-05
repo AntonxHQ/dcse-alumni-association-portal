@@ -1,6 +1,6 @@
 'use client';
 
-import { Search, Shield, ShieldCheck, Trash2, UserPlus } from 'lucide-react';
+import { Loader2, Search, Shield, ShieldCheck, Trash2, UserPlus } from 'lucide-react';
 import Image from 'next/image';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -138,7 +138,13 @@ export function UsersClient({ admins, currentUserId }: { admins: Admin[]; curren
             disabled={assigning || !searchEmail.trim()}
             className="flex items-center gap-2 rounded-md bg-brand px-4 py-2 text-sm font-medium text-foreground-contrast transition-colors hover:bg-brand-600 disabled:opacity-60"
           >
-            {assigning ? 'Assigning…' : 'Assign Role'}
+            {assigning ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" /> Assigning…
+              </>
+            ) : (
+              'Assign Role'
+            )}
           </button>
         </form>
 
@@ -240,7 +246,11 @@ export function UsersClient({ admins, currentUserId }: { admins: Admin[]; curren
                           title="Remove admin access"
                           className="flex items-center gap-1.5 rounded px-2 py-1.5 text-xs text-foreground-lighter transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
                         >
-                          <Trash2 className="h-3.5 w-3.5" />
+                          {revoking === admin.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-3.5 w-3.5" />
+                          )}
                           {revoking === admin.id ? 'Removing…' : 'Remove'}
                         </button>
                       )}

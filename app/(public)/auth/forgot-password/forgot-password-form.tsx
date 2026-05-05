@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
+import { Loader2 } from 'lucide-react';
 
 import { forgotPasswordAction, type ForgotPasswordState } from './actions';
 
@@ -37,7 +38,13 @@ export function ForgotPasswordForm() {
         disabled={isPending}
         type="submit"
       >
-        {isPending ? 'Sending reset link...' : 'Send reset link'}
+        {isPending ? (
+          <span className="inline-flex items-center justify-center gap-2">
+            <Loader2 className="h-4 w-4 animate-spin" /> Sending reset link…
+          </span>
+        ) : (
+          'Send reset link'
+        )}
       </button>
     </form>
   );

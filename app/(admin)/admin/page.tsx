@@ -3,6 +3,7 @@ import { createClient as createServerClient } from '../../../lib/supabase/server
 import { redirect } from 'next/navigation';
 import { StatCard } from '../../../components/ui/stat-card';
 import { AlumniGrowthChart } from './admin-chart';
+import { BatchBarChart } from './batch-chart';
 import { Users, UserCheck, UserRound, Calendar, ClipboardList, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 
@@ -42,6 +43,42 @@ async function getKPIs() {
   };
 }
 
+async function getBatchBreakdown() {
+  const { data } = await adminClient
+    .from('degrees')
+    .select('level, intake_year, profile_id')
+    .not('intake_year', 'is', null);
+
+  const rows = data ?? [];
+
+  const grouped: Record<string, Map<number, Set<string>>> = {
+    BS: new Map(),
+    MS: new Map(),
+    PhD: new Map(),
+  };
+
+  for (const row of rows) {
+    if (!row.intake_year || !(row.level in grouped)) continue;
+    const byYear = grouped[row.level];
+    if (!byYear.has(row.intake_year)) byYear.set(row.intake_year, new Set());
+    byYear.get(row.intake_year)?.add(row.profile_id);
+  }
+
+  const bs = Array.from(grouped.BS.entries())
+    .sort(([a], [b]) => a - b)
+    .map(([year, ids]) => ({ label: `Batch ${year - 1998}`, count: ids.size }));
+
+  const ms = Array.from(grouped.MS.entries())
+    .sort(([a], [b]) => a - b)
+    .map(([year, ids]) => ({ label: String(year), count: ids.size }));
+
+  const phd = Array.from(grouped.PhD.entries())
+    .sort(([a], [b]) => a - b)
+    .map(([year, ids]) => ({ label: String(year), count: ids.size }));
+
+  return { bs, ms, phd };
+}
+
 async function getGrowthData(): Promise<{ month: string; count: number }[]> {
   const months: { month: string; count: number }[] = [];
   const now = new Date();
@@ -77,7 +114,11 @@ export default async function AdminDashboardPage() {
     .maybeSingle();
   if (!adminRole) redirect('/dashboard');
 
-  const [kpis, growthData] = await Promise.all([getKPIs(), getGrowthData()]);
+  const [kpis, growthData, batchBreakdown] = await Promise.all([
+    getKPIs(),
+    getGrowthData(),
+    getBatchBreakdown(),
+  ]);
 
   return (
     <div>
@@ -137,6 +178,13 @@ export default async function AdminDashboardPage() {
 
       {/* Growth chart */}
       <AlumniGrowthChart data={growthData} />
+
+      {/* Batch-wise registrations */}
+      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <BatchBarChart data={batchBreakdown.bs} title="BS — Registrations by Batch" />
+        <BatchBarChart data={batchBreakdown.ms} title="MS — Registrations by Intake Year" />
+        <BatchBarChart data={batchBreakdown.phd} title="PhD — Registrations by Intake Year" />
+      </div>
     </div>
   );
 }
