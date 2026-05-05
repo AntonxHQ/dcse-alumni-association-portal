@@ -106,10 +106,26 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-input,
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
 textarea,
 select {
   @apply w-full rounded-md border border-border-control bg-surface-200 px-3 py-2 text-sm text-foreground placeholder:text-foreground-lighter outline-none transition-colors duration-150 focus:border-brand;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  width: 1rem !important;
+  height: 1rem !important;
+  min-width: 1rem !important;
+  padding: 0 !important;
+  background-color: transparent !important;
+  border-width: 0 !important;
+  border-radius: 0 !important;
+  flex-shrink: 0;
+  cursor: pointer;
+  accent-color: hsl(var(--brand));
+  appearance: auto !important;
+  -webkit-appearance: auto !important;
 }
 
 ::-webkit-scrollbar {

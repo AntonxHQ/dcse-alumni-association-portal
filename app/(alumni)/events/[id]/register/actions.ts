@@ -38,16 +38,17 @@ export async function registerForEvent(
 
   if (evErr || !event) throw new Error('Event not found');
 
-  // Check duplicate registration
+  // Check existing registration for this user (any status)
   const { data: existing } = await adminClient
     .from('event_registrations')
     .select('id, status')
     .eq('event_id', eventId)
     .eq('profile_id', profile.id)
-    .neq('status', 'cancelled')
     .maybeSingle();
 
-  if (existing) throw new Error('Already registered for this event');
+  if (existing && existing.status !== 'cancelled') {
+    throw new Error('Already registered for this event');
+  }
 
   // Check capacity (confirmed count)
   const { count: confirmedCount } = await adminClient
@@ -69,20 +70,47 @@ export async function registerForEvent(
   }
 
   const qr_token = crypto.randomUUID();
+  const newRow = {
+    event_id: eventId,
+    profile_id: profile.id,
+    status: isWaitlisted ? 'waitlisted' : 'confirmed',
+    waitlist_position: waitlistPosition,
+    qr_token,
+    dietary_requirements: formData.dietary_requirements ?? null,
+    guest_count: formData.guest_count ?? 0,
+  };
 
-  const { data: registration, error: regErr } = await adminClient
-    .from('event_registrations')
-    .insert({
-      event_id: eventId,
-      profile_id: profile.id,
-      status: isWaitlisted ? 'waitlisted' : 'confirmed',
-      waitlist_position: waitlistPosition,
-      qr_token,
-      dietary_requirements: formData.dietary_requirements ?? null,
-      guest_count: formData.guest_count ?? 0,
-    })
-    .select('id, status, waitlist_position')
-    .single();
+  let registration: { id: string; status: string; waitlist_position: number | null } | null = null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let regErr: any = null;
+
+  if (existing?.status === 'cancelled') {
+    // Re-registration after cancellation — update the existing row
+    const { data, error } = await adminClient
+      .from('event_registrations')
+      .update({
+        status: newRow.status,
+        waitlist_position: newRow.waitlist_position,
+        qr_token: newRow.qr_token,
+        dietary_requirements: newRow.dietary_requirements,
+        guest_count: newRow.guest_count,
+        registered_at: new Date().toISOString(),
+      })
+      .eq('id', existing.id)
+      .select('id, status, waitlist_position')
+      .single();
+    registration = data;
+    regErr = error;
+  } else {
+    // Fresh registration
+    const { data, error } = await adminClient
+      .from('event_registrations')
+      .insert(newRow)
+      .select('id, status, waitlist_position')
+      .single();
+    registration = data;
+    regErr = error;
+  }
 
   if (regErr || !registration) throw new Error('Registration failed');
 

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { Users } from 'lucide-react';
+import { Clock, Users } from 'lucide-react';
 
 import { createClient } from '@/lib/supabase/server';
 import { createAnonSupabaseServer } from '@/lib/supabase/anon-server';
@@ -74,6 +74,13 @@ export default async function AlumniDirectoryPage(props: AlumniDirectoryPageProp
   if (!user) {
     redirect('/auth/login?next=/alumni');
   }
+
+  const { data: viewerProfile } = await supabase
+    .from('profiles')
+    .select('status')
+    .eq('id', user.id)
+    .maybeSingle();
+  const viewerStatus = (viewerProfile?.status as string | null) ?? null;
 
   const q = query.q ?? '';
   const selectedDegrees = toArray(query.degree);
@@ -269,6 +276,24 @@ export default async function AlumniDirectoryPage(props: AlumniDirectoryPageProp
 
   return (
     <div className="mx-auto max-w-[1280px] px-6 py-8">
+      {viewerStatus && viewerStatus !== 'active' && (
+        <div className="mb-6 flex items-start gap-3 rounded-lg border border-warning/30 bg-warning-bg px-4 py-3">
+          <Clock className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+          <div>
+            <p className="text-sm font-medium text-foreground">
+              {viewerStatus === 'pending_email'
+                ? 'Email not verified'
+                : 'Account pending approval'}
+            </p>
+            <p className="mt-0.5 text-xs text-foreground-light">
+              {viewerStatus === 'pending_email'
+                ? 'Please verify your email to complete registration.'
+                : 'An admin will review and approve your account. You can browse the directory once approved.'}
+            </p>
+          </div>
+        </div>
+      )}
+
       <PageHeader
         title="Alumni Directory"
         description="Connect with fellow CSE graduates."

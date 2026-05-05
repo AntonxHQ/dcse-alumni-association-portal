@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 
 export default function PublicLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex min-h-screen flex-col bg-background">
       <nav className="border-b border-default bg-surface-100">
         <div className="flex h-14 max-w-[1280px] mx-auto items-center justify-between px-6">
           <Link href="/" className="flex items-center gap-2">
@@ -26,7 +26,7 @@ export default function PublicLayout({ children }: { children: ReactNode }) {
           </div>
         </div>
       </nav>
-      <main>{children}</main>
+      <main className="flex-1">{children}</main>
       <footer className="border-t border-default bg-surface-100">
         <div className="max-w-[1280px] mx-auto px-6 py-6">
           <p className="text-xs text-foreground-lighter">

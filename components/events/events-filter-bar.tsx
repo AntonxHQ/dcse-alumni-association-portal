@@ -55,7 +55,7 @@ export function EventsFilterBar({
     }`;
 
   return (
-    <div className="sticky top-0 z-10 mb-6 flex flex-wrap items-center gap-2 border-b border-muted bg-surface-100 py-3">
+    <div className="sticky top-0 z-10 mb-6 flex items-center gap-2 overflow-x-auto border-b border-muted bg-surface-100 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <select
         className={selectClass(!!category)}
         value={category}
