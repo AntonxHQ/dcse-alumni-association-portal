@@ -4,16 +4,11 @@ node_modules/
 .pnp.js
 .yarn/install-state.gz
 
-# ─── Next.js ────────────────────────────────────────────────
+# ─── Next.js build output ───────────────────────────────────
 .next/
 out/
 build/
 dist/
-
-# Next.js cache / telemetry
-.next/
-.next/cache/
-.vercel
 
 # ─── TypeScript ──────────────────────────────────────────────
 *.tsbuildinfo
@@ -29,13 +24,9 @@ next-env.d.ts
 .env.production.local
 
 # ─── Supabase ────────────────────────────────────────────────
-# Local dev containers / generated types (commit migrations, not these)
 supabase/.temp/
 supabase/.branches/
 supabase/functions/.cache/
-# Generated TypeScript types — regenerate with `supabase gen types`
-# (uncomment the next line if you prefer not to commit generated types)
-# types/supabase.ts
 
 # ─── React Email ─────────────────────────────────────────────
 .react-email/
@@ -61,5 +52,11 @@ Thumbs.db
 *.swo
 *~
 
+# ─── AI tooling (local only) ─────────────────────────────────
+.claude/
+.aider-desk/
+.aider*
+
 # ─── Misc ────────────────────────────────────────────────────
 *.pem
+.vercel
