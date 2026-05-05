@@ -8,27 +8,24 @@ import { RegisterWizard, type ResumeData } from './register-wizard';
 export default async function RegisterPage() {
   let resumeData: ResumeData | undefined;
 
-  // Check if user is already authenticated (but perhaps hasn't finished registration)
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
   if (user) {
-    // Fetch profile and related data
-    const [{ data: profile }, { data: degrees }, { data: employment }, { data: skillRows }] = await Promise.all([
+    const [{ data: profile }, { data: degrees }, { data: employment }, { data: highlights }, { data: skillRows }] = await Promise.all([
       adminClient.from('profiles').select('*').eq('id', user.id).single(),
       adminClient.from('degrees').select('*').eq('profile_id', user.id),
       adminClient.from('employment_history').select('*').eq('profile_id', user.id).order('start_month', { ascending: false }),
+      adminClient.from('career_highlights').select('*').eq('profile_id', user.id).order('sort_order', { ascending: true }),
       adminClient.from('profile_skills').select('skills(name)').eq('profile_id', user.id),
     ]);
 
     if (profile) {
       const step = profile.registration_step as number;
       if (step >= 6) {
-        // Registration is already complete
         redirect('/dashboard');
       }
 
-      // Prepare resume data
       resumeData = {
         userId: user.id,
         initialStep: step,
@@ -45,8 +42,7 @@ export default async function RegisterPage() {
         degrees: (degrees || []).map((d) => ({
           level: d.level as 'BS' | 'MS' | 'PhD',
           registration_no: d.registration_no as string,
-          intake_year: d.intake_year as number,
-          graduation_year: d.graduation_year as number,
+          intake_year: d.intake_year as number | null,
         })),
         employment: (employment || []).map((e) => ({
           job_title: e.job_title as string,
@@ -55,19 +51,23 @@ export default async function RegisterPage() {
           start_month: (e.start_month as string).substring(0, 7),
           end_month: e.end_month ? (e.end_month as string).substring(0, 7) : '',
         })),
+        achievements: (highlights || []).map((h) => ({
+          title: h.title as string,
+          year: h.year as number | undefined,
+          description: h.description as string | undefined,
+        })),
         skills: (skillRows || []).map((r) => {
-          const s = r.skills as unknown as { name?: string } | { name?: string }[] | null;
-          if (Array.isArray(s)) return s[0]?.name;
-          return s?.name;
-        }).filter((n): n is string => !!n),
+          const s = r.skills as unknown as { name?: string } | null;
+          return s?.name ?? '';
+        }).filter(Boolean),
       };
     }
   }
 
   return (
     <AuthShell
-      subtitle={resumeData ? "Continue your registration" : "Complete all steps to register as a CSE alumnus"}
-      title={resumeData ? "Resume Registration" : "Create your account"}
+      subtitle={resumeData ? 'Complete your profile to join the alumni directory' : 'Join DCSE Alumni Community'}
+      title={resumeData ? 'Complete your profile' : 'Create your account'}
       wide
     >
       <RegisterWizard resumeData={resumeData} />

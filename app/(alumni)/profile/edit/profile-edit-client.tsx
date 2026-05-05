@@ -1,43 +1,27 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
-import { Camera, Plus, Trash2, X } from 'lucide-react';
+import { Camera, Lock, Plus, Trash2, Users, X } from 'lucide-react';
 import Image from 'next/image';
 import { useMemo, useState } from 'react';
-import { useForm, useWatch } from 'react-hook-form';
 import { toast } from 'sonner';
-import { z } from 'zod';
 
+import { SearchableSelect } from '../../../../components/ui/searchable-select';
+import { City, Country } from 'country-state-city';
 import {
-  createEmployment,
-  deleteEmployment,
+  saveAchievements,
   saveAvatarUrl,
   saveDegrees,
+  saveEmployment,
   savePrivacySettings,
   saveProfileBasics,
   saveSkills,
 } from './actions';
 
-import { City, Country } from 'country-state-city';
+/* ─── Types ──────────────────────────────────────────────────── */
 
-type Degree = {
-  level: 'BS' | 'MS' | 'PhD';
-  registration_no: string;
-  intake_year: number;
-  graduation_year: number;
-};
-
-type Employment = {
-  id: string;
-  job_title: string;
-  company: string;
-  employment_type: string | null;
-  start_month: string;
-  end_month: string | null;
-  city: string | null;
-  country: string | null;
-  description: string | null;
-};
+type Degree = { level: 'BS' | 'MS' | 'PhD'; registration_no: string; intake_year: number | null };
+type EmploymentEntry = { id?: string; job_title: string; company: string; employment_type: string; start_month: string; end_month: string };
+type Achievement = { title: string; year?: number; description?: string };
 
 type ProfileEditData = {
   id: string;
@@ -51,465 +35,499 @@ type ProfileEditData = {
   bio: string | null;
   privacy_settings: Record<string, string> | null;
   degrees: Degree[];
-  employment: Employment[];
+  employment: EmploymentEntry[];
   skills: string[];
+  achievements: Achievement[];
 };
 
-const basicsSchema = z.object({
-  full_name: z.string().min(1),
-  phone: z.string(),
-  city: z.string(),
-  country: z.string().max(2),
-  postal_address: z.string(),
-  bio: z.string().max(300),
-});
+/* ─── Constants ──────────────────────────────────────────────── */
 
-const degreeRow = z
-  .object({
-    registration_no: z.string().min(1),
-    intake_year: z.number().int().min(1980),
-    graduation_year: z.number().int().min(1980),
-  })
-  .refine((value) => value.graduation_year >= value.intake_year, {
-    message: 'Graduation year must be after intake year',
-    path: ['graduation_year'],
-  });
+const DEGREE_META: Record<'BS' | 'MS' | 'PhD', { label: string; batchRequired: boolean }> = {
+  BS: { label: 'Bachelor of Science', batchRequired: true },
+  MS: { label: 'Master of Science', batchRequired: false },
+  PhD: { label: 'Doctor of Philosophy', batchRequired: false },
+};
 
-const degreeSchema = z.object({
-  selectedLevels: z.array(z.enum(['BS', 'MS', 'PhD'])),
-  values: z.object({
-    BS: degreeRow.optional(),
-    MS: degreeRow.optional(),
-    PhD: degreeRow.optional(),
-  }),
-});
+const EMPLOYMENT_TYPES = [
+  { value: 'full_time', label: 'Full-time' },
+  { value: 'part_time', label: 'Part-time' },
+  { value: 'contract', label: 'Contract' },
+  { value: 'freelance', label: 'Freelance' },
+  { value: 'internship', label: 'Internship' },
+  { value: 'self_employed', label: 'Self-employed' },
+];
 
-const privacySchema = z.object({
-  email: z.enum(['alumni_only', 'private']),
-  phone: z.enum(['alumni_only', 'private']),
-  postal_address: z.enum(['alumni_only', 'private']),
-  city: z.enum(['public', 'alumni_only', 'private']),
-  employment: z.enum(['public', 'alumni_only']),
-});
+const PREDEFINED_SKILLS = [
+  'Embedded Systems', 'VLSI Design', 'Computer Networks', 'Machine Learning',
+  'Operating Systems', 'PCB Design', 'IoT', 'Cybersecurity',
+  'Software Engineering', 'Digital Signal Processing', 'Python', 'C/C++',
+  'Java', 'Web Development', 'Mobile Development', 'Cloud Computing',
+];
 
-/* ─── Reusable field wrapper ────────────────────────────────── */
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+const MONTHS = [
+  { value: '01', label: 'January' }, { value: '02', label: 'February' },
+  { value: '03', label: 'March' }, { value: '04', label: 'April' },
+  { value: '05', label: 'May' }, { value: '06', label: 'June' },
+  { value: '07', label: 'July' }, { value: '08', label: 'August' },
+  { value: '09', label: 'September' }, { value: '10', label: 'October' },
+  { value: '11', label: 'November' }, { value: '12', label: 'December' },
+];
+
+const PRIVACY_OPTIONS = [
+  { value: 'alumni_only', label: 'Alumni only', icon: <Users className="h-3.5 w-3.5" /> },
+  { value: 'private', label: 'Private', icon: <Lock className="h-3.5 w-3.5" /> },
+];
+
+const PRIVACY_FIELDS = [
+  { key: 'email', label: 'Email address' },
+  { key: 'phone', label: 'Phone number' },
+  { key: 'postal_address', label: 'Postal address' },
+  { key: 'city', label: 'City & country' },
+  { key: 'employment', label: 'Employment history' },
+] as const;
+
+/* ─── Small reusable pieces ──────────────────────────────────── */
+
+function SectionHeader({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="mb-4 border-b border-border-muted pb-4">
+      <h3 className="text-base font-medium text-foreground">{title}</h3>
+      <p className="mt-0.5 text-sm text-foreground-light">{description}</p>
+    </div>
+  );
+}
+
+function Field({ label, children, optional }: { label: string; children: React.ReactNode; optional?: boolean }) {
   return (
     <div>
-      <span className="mb-1.5 block text-sm font-medium text-foreground-light">{label}</span>
+      <span className="mb-1.5 block text-sm font-medium text-foreground-light">
+        {label}
+        {optional && <span className="ml-1 text-xs font-normal text-foreground-lighter">(optional)</span>}
+      </span>
       {children}
     </div>
   );
 }
 
-/* ─── Section save button (secondary / default button) ──────── */
-function SaveButton({ type = 'submit', onClick }: { type?: 'submit' | 'button'; onClick?: () => void }) {
+function SaveBtn({ onClick, loading }: { onClick: () => void; loading?: boolean }) {
   return (
     <button
-      className="mt-4 rounded-md border border-secondary bg-button px-3.5 py-2 text-sm font-medium text-foreground transition-colors hover:border-strong hover:bg-surface-300 focus:outline-none focus:ring-2 focus:ring-white/10"
+      className="rounded-md border border-secondary bg-button px-3.5 py-2 text-sm font-medium text-foreground transition-colors hover:border-strong hover:bg-surface-300 disabled:opacity-60"
+      disabled={loading}
       onClick={onClick}
-      type={type}
+      type="button"
     >
-      Save
+      {loading ? 'Saving…' : 'Save'}
     </button>
   );
 }
 
+function MonthYearPicker({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
+  const currentYear = new Date().getFullYear();
+  const years = useMemo(() => Array.from({ length: currentYear - 1979 }, (_, i) => currentYear - i), [currentYear]);
+  const [yearPart, monthPart] = value ? value.split('-') : ['', ''];
+
+  return (
+    <div className="flex gap-2">
+      <select className="flex-[2]" onChange={(e) => onChange(e.target.value && monthPart ? `${e.target.value}-${monthPart}` : e.target.value ? `${e.target.value}-01` : '')} value={yearPart || ''}>
+        <option value="">{placeholder ?? 'Year'}</option>
+        {years.map((y) => <option key={y} value={y}>{y}</option>)}
+      </select>
+      <select className="flex-[3]" disabled={!yearPart} onChange={(e) => onChange(yearPart && e.target.value ? `${yearPart}-${e.target.value}` : '')} value={monthPart || ''}>
+        <option value="">Month</option>
+        {MONTHS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+      </select>
+    </div>
+  );
+}
+
+/* ─── Main client component ──────────────────────────────────── */
+
 export function ProfileEditClient({ initial }: { initial: ProfileEditData }) {
-  const initials = initial.full_name
-    .split(' ')
-    .map((part) => part[0] ?? '')
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
+  const initials = initial.full_name.split(' ').map((p) => p[0] ?? '').join('').slice(0, 2).toUpperCase();
+  const currentYear = new Date().getFullYear();
+  const batches = useMemo(() => Array.from({ length: currentYear - 1998 }, (_, i) => i + 1), [currentYear]);
+  const intakeYears = useMemo(() => Array.from({ length: currentYear - 1998 }, (_, i) => 1999 + i), [currentYear]);
+
+  // Country/city options
+  const countryOptions = useMemo(() => Country.getAllCountries().map((c) => ({ value: c.isoCode, label: c.name })), []);
+
+  // ── Basic info state ───────────────────────────────────────
+  const [basics, setBasics] = useState({
+    full_name: initial.full_name,
+    phone: initial.phone ?? '',
+    city: initial.city ?? '',
+    country: initial.country ?? '',
+    postal_address: initial.postal_address ?? '',
+    bio: initial.bio ?? '',
+  });
+  const [basicsSaving, setBasicsSaving] = useState(false);
+
+  const cityOptions = useMemo(() => {
+    if (!basics.country) return [];
+    return (City.getCitiesOfCountry(basics.country) ?? []).map((c) => ({ value: c.name, label: c.name }));
+  }, [basics.country]);
+
+  // ── Degrees state ──────────────────────────────────────────
+  const initDegreeValues = Object.fromEntries(
+    initial.degrees.map((d) => [d.level, {
+      registration_no: d.registration_no,
+      batch_no: d.intake_year ? d.intake_year - 1998 : undefined,
+    }])
+  ) as Partial<Record<'BS' | 'MS' | 'PhD', { registration_no: string; batch_no?: number }>>;
+
+  const [selectedLevels, setSelectedLevels] = useState<Array<'BS' | 'MS' | 'PhD'>>(initial.degrees.map((d) => d.level));
+  const [degreeValues, setDegreeValues] = useState(initDegreeValues);
+  const [degreesSaving, setDegreesSaving] = useState(false);
+
+  // ── Employment state ───────────────────────────────────────
+  const [employment, setEmployment] = useState<EmploymentEntry[]>(initial.employment);
+  const [empSaving, setEmpSaving] = useState(false);
+
+  // ── Achievements state ─────────────────────────────────────
+  const [achievements, setAchievements] = useState<Achievement[]>(initial.achievements);
+  const [achSaving, setAchSaving] = useState(false);
+  const achievementYears = useMemo(() => Array.from({ length: currentYear - 1994 }, (_, i) => currentYear - i), [currentYear]);
+
+  // ── Skills state ───────────────────────────────────────────
   const [skills, setSkills] = useState(initial.skills);
   const [skillQuery, setSkillQuery] = useState('');
-  const [skillOptions, setSkillOptions] = useState<string[]>([]);
-  const [employmentList, setEmploymentList] = useState(initial.employment);
-  const years = useMemo(
-    () => Array.from({ length: new Date().getFullYear() - 1979 }, (_, i) => 1980 + i),
-    [],
-  );
+  const [skillsSaving, setSkillsSaving] = useState(false);
+  const filteredSkillOptions = skillQuery
+    ? PREDEFINED_SKILLS.filter((s) => s.toLowerCase().includes(skillQuery.toLowerCase()) && !skills.includes(s))
+    : [];
 
-  const basicsForm = useForm<z.infer<typeof basicsSchema>>({
-    resolver: zodResolver(basicsSchema),
-    defaultValues: {
-      full_name: initial.full_name,
-      phone: initial.phone ?? '',
-      city: initial.city ?? '',
-      country: initial.country ?? '',
-      postal_address: initial.postal_address ?? '',
-      bio: initial.bio ?? '',
-    },
-  });
-
-  const selectedCountryCode = useWatch({ control: basicsForm.control, name: 'country' });
-  const countries = Country.getAllCountries();
-  const cities = selectedCountryCode ? City.getCitiesOfCountry(selectedCountryCode) : [];
-
-  const degreeDefaults: z.infer<typeof degreeSchema> = {
-    selectedLevels: initial.degrees.map((degree) => degree.level),
-    values: {
-      BS: initial.degrees.find((degree) => degree.level === 'BS'),
-      MS: initial.degrees.find((degree) => degree.level === 'MS'),
-      PhD: initial.degrees.find((degree) => degree.level === 'PhD'),
-    },
+  // ── Privacy state ──────────────────────────────────────────
+  const initPrivacy = {
+    email: (initial.privacy_settings?.email ?? 'private') as 'alumni_only' | 'private',
+    phone: (initial.privacy_settings?.phone ?? 'private') as 'alumni_only' | 'private',
+    postal_address: (initial.privacy_settings?.postal_address ?? 'private') as 'alumni_only' | 'private',
+    city: (initial.privacy_settings?.city ?? 'alumni_only') as 'alumni_only' | 'private',
+    employment: (initial.privacy_settings?.employment ?? 'alumni_only') as 'alumni_only' | 'private',
   };
-  const degreeForm = useForm<z.infer<typeof degreeSchema>>({
-    resolver: zodResolver(degreeSchema),
-    defaultValues: degreeDefaults,
-  });
-  const selectedLevels = useWatch({
-    control: degreeForm.control,
-    name: 'selectedLevels',
-    defaultValue: degreeDefaults.selectedLevels,
-  });
+  const [privacy, setPrivacy] = useState(initPrivacy);
+  const [privacySaving, setPrivacySaving] = useState(false);
 
-  const privacyForm = useForm<z.infer<typeof privacySchema>>({
-    resolver: zodResolver(privacySchema),
-    defaultValues: {
-      email: (initial.privacy_settings?.email as 'alumni_only' | 'private') ?? 'private',
-      phone: (initial.privacy_settings?.phone as 'alumni_only' | 'private') ?? 'private',
-      postal_address:
-        (initial.privacy_settings?.postal_address as 'alumni_only' | 'private') ?? 'private',
-      city: (initial.privacy_settings?.city as 'public' | 'alumni_only' | 'private') ?? 'alumni_only',
-      employment:
-        (initial.privacy_settings?.employment as 'public' | 'alumni_only') ?? 'public',
-    },
-  });
-  const privacyRows: Array<{
-    field: keyof z.infer<typeof privacySchema>;
-    label: string;
-    options: string[];
-  }> = [
-      { field: 'email', label: 'Email', options: ['alumni_only', 'private'] },
-      { field: 'phone', label: 'Phone', options: ['alumni_only', 'private'] },
-      {
-        field: 'postal_address',
-        label: 'Postal address',
-        options: ['alumni_only', 'private'],
-      },
-      { field: 'city', label: 'City', options: ['public', 'alumni_only', 'private'] },
-      { field: 'employment', label: 'Employment', options: ['public', 'alumni_only'] },
-    ];
+  const [avatarUrl, setAvatarUrl] = useState(initial.avatar_url);
+  const [avatarUploading, setAvatarUploading] = useState(false);
 
+  /* ── Avatar ───────────────────────────────────────────────── */
   async function onUploadAvatar(file: File) {
-    const formData = new FormData();
-    formData.append('file', file);
-    const response = await fetch('/api/upload/avatar', { method: 'POST', body: formData });
-    if (!response.ok) {
-      toast.error('Failed to upload avatar');
+    if (!['image/jpeg', 'image/jpg', 'image/png'].includes(file.type)) {
+      toast.error('Only JPEG and PNG files are allowed');
       return;
     }
-    const payload = (await response.json()) as { url: string };
-    await saveAvatarUrl(payload.url);
-    toast.success('Saved');
-  }
-
-  async function querySkills(query: string) {
-    const response = await fetch(`/api/skills/search?q=${encodeURIComponent(query)}`);
-    if (!response.ok) return;
-    const payload = (await response.json()) as { data: string[] };
-    setSkillOptions(payload.data);
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('File size must be 10 MB or less');
+      return;
+    }
+    setAvatarUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/upload/avatar', { method: 'POST', body: formData });
+      const json = await res.json() as { url?: string; error?: string };
+      if (!res.ok) { toast.error(json.error ?? 'Upload failed'); return; }
+      setAvatarUrl(json.url!);
+      await saveAvatarUrl(json.url!);
+      toast.success('Avatar updated');
+    } finally {
+      setAvatarUploading(false);
+    }
   }
 
   return (
     <div className="mx-auto flex max-w-[720px] flex-col gap-6 px-6 py-8">
-      {/* ─── Page header ────────────────────────────────────────── */}
       <div>
         <h2 className="text-2xl font-medium text-foreground" style={{ letterSpacing: '-0.3px' }}>Edit profile</h2>
         <p className="mt-1 text-sm text-foreground-light">Update your profile information.</p>
       </div>
 
-      {/* ─── Avatar ─────────────────────────────────────────────── */}
+      {/* ── Avatar ────────────────────────────────────────────── */}
       <section className="rounded-lg border border-border bg-surface-100 p-5">
-        <div className="mb-4 border-b border-border-muted pb-4">
-          <h3 className="text-base font-medium text-foreground">Avatar</h3>
-          <p className="mt-0.5 text-sm text-foreground-light">Your public profile picture.</p>
-        </div>
+        <SectionHeader title="Avatar" description="Your public profile picture." />
         <div className="flex items-center gap-4">
-          {initial.avatar_url ? (
-            <Image
-              alt="Avatar"
-              className="h-16 w-16 rounded-full object-cover"
-              height={64}
-              src={initial.avatar_url}
-              unoptimized
-              width={64}
-            />
+          {avatarUrl ? (
+            <Image alt="Avatar" className="h-16 w-16 rounded-full object-cover" height={64} src={avatarUrl} unoptimized width={64} />
           ) : (
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-surface-300 text-lg font-medium text-foreground-light">
-              {initials}
-            </div>
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-surface-300 text-lg font-medium text-foreground-light">{initials}</div>
           )}
-          <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-secondary bg-button px-3.5 py-2 text-sm font-medium text-foreground transition-colors hover:border-strong hover:bg-surface-300">
+          <label className={`inline-flex cursor-pointer items-center gap-2 rounded-md border border-secondary bg-button px-3.5 py-2 text-sm font-medium text-foreground transition-colors hover:border-strong hover:bg-surface-300 ${avatarUploading ? 'opacity-60 pointer-events-none' : ''}`}>
             <Camera className="h-4 w-4" />
-            Upload photo
-            <input
-              className="hidden"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) void onUploadAvatar(file);
-              }}
-              type="file"
-            />
+            {avatarUploading ? 'Uploading…' : 'Upload photo'}
+            <input className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void onUploadAvatar(f); }} type="file" accept="image/jpeg,image/png" />
           </label>
         </div>
       </section>
 
-      {/* ─── Basic info ─────────────────────────────────────────── */}
+      {/* ── Basic info ────────────────────────────────────────── */}
       <section className="rounded-lg border border-border bg-surface-100 p-5">
-        <div className="mb-4 border-b border-border-muted pb-4">
-          <h3 className="text-base font-medium text-foreground">Basic info</h3>
-          <p className="mt-0.5 text-sm text-foreground-light">Manage your core profile details.</p>
-        </div>
-        <form
-          className="flex flex-col gap-4"
-          onSubmit={basicsForm.handleSubmit(async (values) => {
-            try {
-              await saveProfileBasics(values);
-              toast.success('Saved');
-            } catch {
-              toast.error('Could not save');
-            }
-          })}
-        >
-          <div className="grid grid-cols-2 gap-4">
+        <SectionHeader title="Basic info" description="Your name, bio, and contact details." />
+        <div className="flex flex-col gap-4">
+          {/* Bio at the top */}
+          <Field label="Bio" optional>
+            <textarea
+              className="resize-none"
+              maxLength={300}
+              onChange={(e) => setBasics((b) => ({ ...b, bio: e.target.value }))}
+              placeholder="A short intro about yourself…"
+              rows={3}
+              value={basics.bio}
+            />
+            <p className="mt-0.5 text-right text-xs text-foreground-lighter">{basics.bio.length}/300</p>
+          </Field>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Full name">
-              <input {...basicsForm.register('full_name')} placeholder="Full name" />
+              <input onChange={(e) => setBasics((b) => ({ ...b, full_name: e.target.value }))} placeholder="Full name" value={basics.full_name} />
             </Field>
             <Field label="Email">
-              <input disabled value={initial.email} className="opacity-60" />
+              <input className="opacity-60" disabled value={initial.email} />
             </Field>
-            <Field label="Phone">
-              <input {...basicsForm.register('phone')} placeholder="+923001234567" />
+            <Field label="Phone" optional>
+              <input onChange={(e) => setBasics((b) => ({ ...b, phone: e.target.value }))} placeholder="+923001234567" type="tel" value={basics.phone} />
             </Field>
-            <Field label="Postal address">
-              <input {...basicsForm.register('postal_address')} placeholder="123 Example Street" />
+            <Field label="Postal address" optional>
+              <input onChange={(e) => setBasics((b) => ({ ...b, postal_address: e.target.value }))} placeholder="Street, City, Country" value={basics.postal_address} />
             </Field>
           </div>
 
-          <div className="rounded-md border border-border bg-surface-100 p-4 mt-2">
-            <h4 className="mb-4 text-sm font-medium text-foreground">Current city and country of residence</h4>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <span className="mb-1.5 block text-sm font-medium text-foreground-light">Country</span>
-                <select
-                  {...basicsForm.register('country')}
-                  className="w-full bg-surface-200"
-                  onChange={(e) => {
-                    basicsForm.setValue('country', e.target.value);
-                    basicsForm.setValue('city', ''); // Reset city on country change
-                  }}
-                >
-                  <option value="">Select Country</option>
-                  {countries.map((c) => (
-                    <option key={c.isoCode} value={c.isoCode}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <span className="mb-1.5 block text-sm font-medium text-foreground-light">City</span>
-                <select
-                  {...basicsForm.register('city')}
-                  className="w-full bg-surface-200"
-                  disabled={!selectedCountryCode || cities?.length === 0}
-                >
-                  <option value="">Select City</option>
-                  {cities?.map((c, index) => (
-                    <option key={`${c.name}-${index}`} value={c.name}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+          {/* Location */}
+          <div className="rounded-md border border-border bg-surface-100 p-4">
+            <h4 className="mb-3 text-sm font-medium text-foreground">Current location</h4>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Field label="Country" optional>
+                <SearchableSelect
+                  onChange={(val) => setBasics((b) => ({ ...b, country: val, city: '' }))}
+                  options={countryOptions}
+                  placeholder="Select country"
+                  value={basics.country}
+                />
+              </Field>
+              <Field label="City" optional>
+                <SearchableSelect
+                  disabled={!basics.country || cityOptions.length === 0}
+                  onChange={(val) => setBasics((b) => ({ ...b, city: val }))}
+                  options={cityOptions}
+                  placeholder={!basics.country ? 'Select country first' : 'Select city'}
+                  value={basics.city}
+                />
+              </Field>
             </div>
           </div>
 
-          <Field label="Bio">
-            <textarea {...basicsForm.register('bio')} placeholder="A short bio about yourself (max 300 chars)" rows={3} />
-          </Field>
           <div className="flex items-center justify-between border-t border-border-muted pt-4">
             <p className="text-xs text-foreground-lighter">Changes are saved per section.</p>
-            <SaveButton />
+            <SaveBtn loading={basicsSaving} onClick={async () => {
+              setBasicsSaving(true);
+              try { await saveProfileBasics(basics); toast.success('Saved'); } catch { toast.error('Could not save'); }
+              setBasicsSaving(false);
+            }} />
           </div>
-        </form>
+        </div>
       </section>
 
-      {/* ─── Degrees ────────────────────────────────────────────── */}
+      {/* ── Degrees ───────────────────────────────────────────── */}
       <section className="rounded-lg border border-border bg-surface-100 p-5">
-        <div className="mb-4 border-b border-border-muted pb-4">
-          <h3 className="text-base font-medium text-foreground">Degrees</h3>
-          <p className="mt-0.5 text-sm text-foreground-light">Academic background and graduation records.</p>
-        </div>
-        <form
-          className="flex flex-col gap-4"
-          onSubmit={degreeForm.handleSubmit(async (values) => {
-            try {
-              await saveDegrees(values);
-              toast.success('Saved');
-            } catch {
-              toast.error('Could not save');
-            }
-          })}
-        >
+        <SectionHeader title="Academic background" description="Your degree(s) from the CSE department." />
+        <div className="flex flex-col gap-3">
           {(['BS', 'MS', 'PhD'] as const).map((level) => {
             const checked = selectedLevels.includes(level);
+            const meta = DEGREE_META[level];
+            const dv = degreeValues[level] ?? { registration_no: '', batch_no: undefined };
             return (
-              <div key={level}>
-                <label className="flex items-center gap-2 text-sm font-medium text-foreground-light">
+              <div className={`rounded-lg border transition-colors ${checked ? 'border-brand bg-brand/5' : 'border-border-muted bg-surface-100'}`} key={level}>
+                <label className="flex cursor-pointer items-center gap-3 px-4 py-3">
                   <input
                     checked={checked}
                     className="h-4 w-4 accent-brand"
-                    onChange={(event) => {
-                      const selected = degreeForm.getValues('selectedLevels');
-                      if (event.target.checked) {
-                        degreeForm.setValue('selectedLevels', [...selected, level]);
-                      } else {
-                        degreeForm.setValue(
-                          'selectedLevels',
-                          selected.filter((entry) => entry !== level),
-                        );
-                      }
+                    onChange={(e) => {
+                      if (e.target.checked) setSelectedLevels((s) => [...s, level]);
+                      else setSelectedLevels((s) => s.filter((l) => l !== level));
                     }}
                     type="checkbox"
                   />
-                  {level}
-                </label>
-                {checked ? (
-                  <div className="mt-3 rounded-md border border-border-muted bg-surface-200 p-4">
-                    <div className="grid grid-cols-3 gap-4">
-                      <Field label="Registration no.">
-                        <input {...degreeForm.register(`values.${level}.registration_no`)} placeholder="2020-CSE-0001" />
-                      </Field>
-                      <Field label="Intake year">
-                        <select
-                          {...degreeForm.register(`values.${level}.intake_year`, {
-                            setValueAs: (value) => Number(value),
-                          })}
-                        >
-                          <option value="">Select</option>
-                          {years.map((year) => (
-                            <option key={year} value={year}>
-                              {year}
-                            </option>
-                          ))}
-                        </select>
-                      </Field>
-                      <Field label="Graduation year">
-                        <select
-                          {...degreeForm.register(`values.${level}.graduation_year`, {
-                            setValueAs: (value) => Number(value),
-                          })}
-                        >
-                          <option value="">Select</option>
-                          {years.map((year) => (
-                            <option key={year} value={year}>
-                              {year}
-                            </option>
-                          ))}
-                        </select>
-                      </Field>
+                  <div className="flex flex-1 items-center justify-between">
+                    <div>
+                      <span className="text-sm font-semibold text-foreground">{level}</span>
+                      <span className="ml-2 text-sm text-foreground-light">{meta.label}</span>
                     </div>
                   </div>
-                ) : null}
+                </label>
+                {checked && (
+                  <div className="border-t border-border-muted px-4 pb-4 pt-3">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <Field label="Registration No.">
+                        <input
+                          onChange={(e) => setDegreeValues((v) => ({ ...v, [level]: { ...dv, registration_no: e.target.value } }))}
+                          placeholder="15PWCSE1281"
+                          value={dv.registration_no}
+                        />
+                      </Field>
+                      {level === 'BS' ? (
+                        <Field label="Batch">
+                          <select
+                            onChange={(e) => setDegreeValues((v) => ({ ...v, [level]: { ...dv, batch_no: e.target.value ? Number(e.target.value) : undefined } }))}
+                            value={dv.batch_no ?? ''}
+                          >
+                            <option value="">Select batch</option>
+                            {batches.map((batch) => (
+                              <option key={batch} value={batch}>Batch {batch}</option>
+                            ))}
+                          </select>
+                        </Field>
+                      ) : (
+                        <Field label="Intake year" optional>
+                          <select
+                            onChange={(e) => {
+                              const year = Number(e.target.value);
+                              setDegreeValues((v) => ({ ...v, [level]: { ...dv, batch_no: year ? year - 1998 : undefined } }));
+                            }}
+                            value={dv.batch_no ? String(1998 + dv.batch_no) : ''}
+                          >
+                            <option value="">Select year</option>
+                            {intakeYears.map((year) => (
+                              <option key={year} value={year}>{year}</option>
+                            ))}
+                          </select>
+                        </Field>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })}
-          {degreeForm.formState.errors.values ? <p className="text-xs text-destructive">Please review degree fields.</p> : null}
-          <div className="flex items-center justify-between border-t border-border-muted pt-4">
-            <p className="text-xs text-foreground-lighter">At least one degree is required.</p>
-            <SaveButton />
+          <div className="flex items-center justify-between border-t border-border-muted pt-4 mt-1">
+            <p className="text-xs text-foreground-lighter">Select all degrees you completed.</p>
+            <SaveBtn loading={degreesSaving} onClick={async () => {
+              setDegreesSaving(true);
+              try { await saveDegrees({ selectedLevels, values: degreeValues }); toast.success('Saved'); } catch (e) { toast.error(e instanceof Error ? e.message : 'Could not save'); }
+              setDegreesSaving(false);
+            }} />
           </div>
-        </form>
+        </div>
       </section>
 
-      {/* ─── Employment ─────────────────────────────────────────── */}
+      {/* ── Employment ────────────────────────────────────────── */}
       <section className="rounded-lg border border-border bg-surface-100 p-5">
-        <div className="mb-4 border-b border-border-muted pb-4">
-          <h3 className="text-base font-medium text-foreground">Employment</h3>
-          <p className="mt-0.5 text-sm text-foreground-light">Your positions and career timeline.</p>
-        </div>
+        <SectionHeader title="Employment history" description="Your career positions and timeline." />
         <div className="flex flex-col gap-3">
-          {employmentList.map((item) => (
-            <div className="flex items-start justify-between rounded-md border border-border-muted bg-surface-200 p-4 transition-colors hover:border-border-secondary" key={item.id}>
-              <div className="flex gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-md bg-surface-300 text-xs font-medium text-foreground-light">
-                  {item.company.slice(0, 1).toUpperCase()}
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-foreground">{item.job_title}</p>
-                  <p className="mt-0.5 text-xs text-foreground-light">{item.company}</p>
-                </div>
-              </div>
-              <button
-                className="rounded-md p-1.5 text-foreground-lighter transition-colors hover:bg-destructive/10 hover:text-destructive"
-                onClick={async () => {
-                  await deleteEmployment(item.id);
-                  setEmploymentList((current) => current.filter((entry) => entry.id !== item.id));
-                  toast.success('Removed');
-                }}
-                type="button"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </div>
-          ))}
-          {employmentList.length === 0 ? (
-            <div className="flex flex-col items-center rounded-md border border-border-muted bg-surface-200 p-8 text-center">
-              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-surface-300 text-foreground-lighter">
-                <Plus className="h-5 w-5" />
-              </div>
-              <p className="text-sm font-medium text-foreground">No employment added yet</p>
-              <p className="mt-1 text-xs text-foreground-lighter">
-                Add your most recent role so alumni can find you.
-              </p>
-            </div>
-          ) : null}
-          <button
-            className="w-full rounded-md border border-dashed border-border-secondary py-2.5 text-sm font-medium text-foreground-lighter transition-colors hover:border-border-strong hover:bg-surface-200 hover:text-foreground-light"
-            onClick={async () => {
-              const draft = {
-                job_title: 'New role',
-                company: 'Company',
-                employment_type: null,
-                start_month: `${new Date().getFullYear()}-01`,
-                end_month: null,
-                city: null,
-                country: null,
-                description: null,
-              };
-              await createEmployment(draft);
-              toast.success('Position added');
-            }}
-            type="button"
-          >
-            + Add position
-          </button>
-        </div>
-      </section>
-
-      {/* ─── Skills ─────────────────────────────────────────────── */}
-      <section className="rounded-lg border border-border bg-surface-100 p-5">
-        <div className="mb-4 border-b border-border-muted pb-4">
-          <h3 className="text-base font-medium text-foreground">Skills</h3>
-          <p className="mt-0.5 text-sm text-foreground-light">Select up to 20 skills or areas of expertise.</p>
-        </div>
-        {skills.length > 0 && (
-          <div className="mb-4 flex flex-wrap gap-2">
-            {skills.map((skill) => (
-              <span
-                className="inline-flex items-center gap-1 rounded bg-surface-300 px-2.5 py-1 text-xs text-foreground-light"
-                key={skill}
-              >
-                {skill}
+          {employment.map((item, index) => (
+            <div className="rounded-lg border border-border-muted bg-surface-200 p-4" key={index}>
+              <div className="mb-3 flex items-center justify-between">
+                <span className="text-xs font-medium uppercase tracking-wide text-foreground-lighter">Position {index + 1}</span>
                 <button
-                  className="text-foreground-lighter transition-colors hover:text-foreground"
-                  onClick={() => setSkills((current) => current.filter((entry) => entry !== skill))}
+                  className="rounded-md p-1.5 text-foreground-lighter transition-colors hover:bg-destructive/10 hover:text-destructive"
+                  onClick={() => setEmployment((e) => e.filter((_, i) => i !== index))}
                   type="button"
                 >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Field label="Job title">
+                  <input onChange={(e) => setEmployment((emp) => emp.map((en, i) => i === index ? { ...en, job_title: e.target.value } : en))} placeholder="e.g. Software Engineer" value={item.job_title} />
+                </Field>
+                <Field label="Company">
+                  <input onChange={(e) => setEmployment((emp) => emp.map((en, i) => i === index ? { ...en, company: e.target.value } : en))} placeholder="Company name" value={item.company} />
+                </Field>
+                <div className="sm:col-span-2">
+                  <Field label="Employment type" optional>
+                    <select onChange={(e) => setEmployment((emp) => emp.map((en, i) => i === index ? { ...en, employment_type: e.target.value } : en))} value={item.employment_type ?? ''}>
+                      <option value="">Select type</option>
+                      {EMPLOYMENT_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                    </select>
+                  </Field>
+                </div>
+                <Field label="Start date">
+                  <MonthYearPicker onChange={(v) => setEmployment((emp) => emp.map((en, i) => i === index ? { ...en, start_month: v } : en))} placeholder="Start year" value={item.start_month} />
+                </Field>
+                <Field label="End date" optional>
+                  <MonthYearPicker onChange={(v) => setEmployment((emp) => emp.map((en, i) => i === index ? { ...en, end_month: v } : en))} placeholder="End year" value={item.end_month} />
+                  <p className="mt-0.5 text-xs text-foreground-lighter">Leave empty for current role</p>
+                </Field>
+              </div>
+            </div>
+          ))}
+          <button
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-border-secondary py-3 text-sm font-medium text-foreground-lighter transition-colors hover:border-border-strong hover:bg-surface-200 hover:text-foreground-light"
+            onClick={() => setEmployment((e) => [...e, { job_title: '', company: '', employment_type: '', start_month: '', end_month: '' }])}
+            type="button"
+          >
+            <Plus className="h-4 w-4" /> Add position
+          </button>
+          <div className="flex items-center justify-between border-t border-border-muted pt-4">
+            <p className="text-xs text-foreground-lighter" />
+            <SaveBtn loading={empSaving} onClick={async () => {
+              setEmpSaving(true);
+              try { await saveEmployment(employment); toast.success('Saved'); } catch { toast.error('Could not save'); }
+              setEmpSaving(false);
+            }} />
+          </div>
+        </div>
+      </section>
+
+      {/* ── Achievements ──────────────────────────────────────── */}
+      <section className="rounded-lg border border-border bg-surface-100 p-5">
+        <SectionHeader title="Achievements" description="Awards, certifications, publications, and milestones." />
+        <div className="flex flex-col gap-3">
+          {achievements.length === 0 && (
+            <div className="rounded-lg border border-dashed border-border-secondary py-6 text-center">
+              <p className="text-sm text-foreground-lighter">No achievements added yet.</p>
+            </div>
+          )}
+          {achievements.map((ach, index) => (
+            <div className="rounded-lg border border-border-muted bg-surface-200 p-4" key={index}>
+              <div className="mb-3 flex items-center justify-between">
+                <span className="text-xs font-medium uppercase tracking-wide text-foreground-lighter">Achievement {index + 1}</span>
+                <button className="rounded-md p-1.5 text-foreground-lighter transition-colors hover:bg-destructive/10 hover:text-destructive" onClick={() => setAchievements((a) => a.filter((_, i) => i !== index))} type="button">
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="flex flex-col gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div className="sm:col-span-2">
+                    <Field label="Title">
+                      <input onChange={(e) => setAchievements((a) => a.map((en, i) => i === index ? { ...en, title: e.target.value } : en))} placeholder="e.g. Best Paper Award" value={ach.title} />
+                    </Field>
+                  </div>
+                  <Field label="Year" optional>
+                    <select onChange={(e) => setAchievements((a) => a.map((en, i) => i === index ? { ...en, year: e.target.value ? Number(e.target.value) : undefined } : en))} value={ach.year ?? ''}>
+                      <option value="">Year</option>
+                      {achievementYears.map((y) => <option key={y} value={y}>{y}</option>)}
+                    </select>
+                  </Field>
+                </div>
+                <Field label="Description" optional>
+                  <textarea className="resize-none" onChange={(e) => setAchievements((a) => a.map((en, i) => i === index ? { ...en, description: e.target.value } : en))} placeholder="Brief description…" rows={2} value={ach.description ?? ''} />
+                </Field>
+              </div>
+            </div>
+          ))}
+          <button className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-border-secondary py-3 text-sm font-medium text-foreground-lighter transition-colors hover:border-border-strong hover:bg-surface-200 hover:text-foreground-light" onClick={() => setAchievements((a) => [...a, { title: '', year: undefined, description: '' }])} type="button">
+            <Plus className="h-4 w-4" /> Add achievement
+          </button>
+          <div className="flex items-center justify-between border-t border-border-muted pt-4">
+            <p className="text-xs text-foreground-lighter" />
+            <SaveBtn loading={achSaving} onClick={async () => {
+              setAchSaving(true);
+              try { await saveAchievements(achievements); toast.success('Saved'); } catch { toast.error('Could not save'); }
+              setAchSaving(false);
+            }} />
+          </div>
+        </div>
+      </section>
+
+      {/* ── Skills ────────────────────────────────────────────── */}
+      <section className="rounded-lg border border-border bg-surface-100 p-5">
+        <SectionHeader title="Skills" description="Select up to 20 technical skills or areas of expertise." />
+        {skills.length > 0 && (
+          <div className="mb-3 flex flex-wrap gap-2">
+            {skills.map((skill) => (
+              <span className="inline-flex items-center gap-1 rounded-md bg-brand/10 px-2.5 py-1 text-xs font-medium text-brand" key={skill}>
+                {skill}
+                <button className="text-brand/60 transition-colors hover:text-brand" onClick={() => setSkills((s) => s.filter((x) => x !== skill))} type="button">
                   <X className="h-3 w-3" />
                 </button>
               </span>
@@ -517,97 +535,58 @@ export function ProfileEditClient({ initial }: { initial: ProfileEditData }) {
           </div>
         )}
         <div className="relative">
-          <input
-            onChange={(event) => {
-              const query = event.target.value;
-              setSkillQuery(query);
-              void querySkills(query);
-            }}
-            placeholder="Search or create skill…"
-            value={skillQuery}
-          />
-          {skillQuery ? (
-            <div className="absolute z-10 mt-1 w-full rounded-md border border-border bg-surface-200 py-1 shadow-none">
-              {skillOptions.map((option) => (
-                <button
-                  className="block w-full px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-surface-300"
-                  key={option}
-                  onClick={() => {
-                    if (skills.length < 20 && !skills.includes(option)) {
-                      setSkills((current) => [...current, option]);
-                    }
-                    setSkillQuery('');
-                  }}
-                  type="button"
-                >
-                  {option}
-                </button>
+          <input onChange={(e) => setSkillQuery(e.target.value)} placeholder="Search or type a skill…" value={skillQuery} />
+          {skillQuery && (
+            <div className="absolute z-10 mt-1 w-full rounded-md border border-border bg-surface-200 py-1 shadow-sm">
+              {filteredSkillOptions.map((opt) => (
+                <button className="block w-full px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-surface-300" key={opt} onClick={() => { if (skills.length < 20 && !skills.includes(opt)) setSkills((s) => [...s, opt]); setSkillQuery(''); }} type="button">{opt}</button>
               ))}
-              <button
-                className="block w-full px-3 py-2 text-left text-sm text-brand transition-colors hover:bg-surface-300"
-                onClick={() => {
-                  if (skills.length < 20 && skillQuery && !skills.includes(skillQuery)) {
-                    setSkills((current) => [...current, skillQuery]);
-                  }
-                  setSkillQuery('');
-                }}
-                type="button"
-              >
-                + Create &quot;{skillQuery}&quot;
-              </button>
+              {!filteredSkillOptions.find((s) => s.toLowerCase() === skillQuery.toLowerCase()) && (
+                <button className="block w-full px-3 py-2 text-left text-sm text-brand transition-colors hover:bg-surface-300" onClick={() => { const t = skillQuery.trim(); if (t && skills.length < 20 && !skills.includes(t)) setSkills((s) => [...s, t]); setSkillQuery(''); }} type="button">+ Add &quot;{skillQuery}&quot;</button>
+              )}
             </div>
-          ) : null}
+          )}
         </div>
         <div className="mt-4 flex items-center justify-between border-t border-border-muted pt-4">
-          <p className="text-xs text-foreground-lighter">{skills.length}/20 skills selected.</p>
-          <SaveButton
-            type="button"
-            onClick={async () => {
-              try {
-                await saveSkills(skills);
-                toast.success('Saved');
-              } catch {
-                toast.error('Could not save');
-              }
-            }}
-          />
+          <p className="text-xs text-foreground-lighter">{skills.length}/20 selected</p>
+          <SaveBtn loading={skillsSaving} onClick={async () => {
+            setSkillsSaving(true);
+            try { await saveSkills(skills); toast.success('Saved'); } catch { toast.error('Could not save'); }
+            setSkillsSaving(false);
+          }} />
         </div>
       </section>
 
-      {/* ─── Privacy ────────────────────────────────────────────── */}
+      {/* ── Privacy ───────────────────────────────────────────── */}
       <section className="rounded-lg border border-border bg-surface-100 p-5">
-        <div className="mb-4 border-b border-border-muted pb-4">
-          <h3 className="text-base font-medium text-foreground">Privacy</h3>
-          <p className="mt-0.5 text-sm text-foreground-light">Control who sees your data.</p>
-        </div>
-        <form
-          className="flex flex-col"
-          onSubmit={privacyForm.handleSubmit(async (values) => {
-            try {
-              await savePrivacySettings(values);
-              toast.success('Saved');
-            } catch {
-              toast.error('Could not save');
-            }
-          })}
-        >
-          {privacyRows.map(({ field, label, options }) => (
-            <div className="flex items-center justify-between border-b border-border-muted py-3 last:border-b-0" key={field}>
-              <span className="text-sm text-foreground-light">{label}</span>
-              <select className="!w-[180px] border border-border-control bg-surface-200 text-sm" {...privacyForm.register(field)}>
-                {options.map((option) => (
-                  <option key={option} value={option}>
-                    {option.replace('_', ' ')}
-                  </option>
+        <SectionHeader title="Privacy settings" description="Control who can see each piece of your profile." />
+        <div className="rounded-lg border border-border-muted bg-surface-100">
+          {PRIVACY_FIELDS.map(({ key, label }, index) => (
+            <div className={`flex items-center justify-between gap-4 px-4 py-3 ${index < PRIVACY_FIELDS.length - 1 ? 'border-b border-border-muted' : ''}`} key={key}>
+              <span className="text-sm font-medium text-foreground">{label}</span>
+              <div className="flex overflow-hidden rounded-md border border-border-control">
+                {PRIVACY_OPTIONS.map((opt) => (
+                  <button
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors ${privacy[key] === opt.value ? 'bg-brand text-foreground-contrast' : 'bg-surface-200 text-foreground-lighter hover:bg-surface-300 hover:text-foreground-light'}`}
+                    key={opt.value}
+                    onClick={() => setPrivacy((p) => ({ ...p, [key]: opt.value }))}
+                    type="button"
+                  >
+                    {opt.icon}{opt.label}
+                  </button>
                 ))}
-              </select>
+              </div>
             </div>
           ))}
-          <div className="mt-4 flex items-center justify-between border-t border-border-muted pt-4">
-            <p className="text-xs text-foreground-lighter">Privacy changes take effect within 60 seconds.</p>
-            <SaveButton />
-          </div>
-        </form>
+        </div>
+        <div className="mt-4 flex items-center justify-between border-t border-border-muted pt-4">
+          <p className="text-xs text-foreground-lighter">Changes take effect within 60 seconds.</p>
+          <SaveBtn loading={privacySaving} onClick={async () => {
+            setPrivacySaving(true);
+            try { await savePrivacySettings(privacy); toast.success('Saved'); } catch { toast.error('Could not save'); }
+            setPrivacySaving(false);
+          }} />
+        </div>
       </section>
     </div>
   );

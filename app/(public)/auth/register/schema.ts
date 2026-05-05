@@ -17,22 +17,19 @@ export const registrationSchema = z.object({
         BS: z
             .object({
                 registration_no: z.string(),
-                intake_year: z.number(),
-                graduation_year: z.number(),
+                batch_no: z.number().optional(),
             })
             .optional(),
         MS: z
             .object({
                 registration_no: z.string(),
-                intake_year: z.number(),
-                graduation_year: z.number(),
+                batch_no: z.number().optional(),
             })
             .optional(),
         PhD: z
             .object({
                 registration_no: z.string(),
-                intake_year: z.number(),
-                graduation_year: z.number(),
+                batch_no: z.number().optional(),
             })
             .optional(),
     }),
@@ -58,15 +55,25 @@ export const registrationSchema = z.object({
         .optional()
         .default([]),
 
-    // Step 5 — Skills
+    // Step 5 — Achievements & Skills
+    achievements: z
+        .array(
+            z.object({
+                title: z.string(),
+                year: z.number().optional(),
+                description: z.string().optional(),
+            }),
+        )
+        .optional()
+        .default([]),
     skills: z.array(z.string()).max(20).optional().default([]),
 
     // Step 6 — Privacy & Consent
-    privacy_email: z.string().default('private'),
-    privacy_phone: z.string().default('private'),
-    privacy_postal_address: z.string().default('private'),
+    privacy_email: z.string().default('alumni_only'),
+    privacy_phone: z.string().default('alumni_only'),
+    privacy_postal_address: z.string().default('alumni_only'),
     privacy_city: z.string().default('alumni_only'),
-    privacy_employment: z.string().default('public'),
+    privacy_employment: z.string().default('alumni_only'),
     consent_data_storage: z.literal(true, {
         error: 'You must accept the data storage policy',
     }),

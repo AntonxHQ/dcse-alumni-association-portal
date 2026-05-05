@@ -68,13 +68,16 @@ export default async function AlumniProfilePage(props: {
     redirect(`/auth/login?next=/alumni/${id}`);
   }
 
+  const isOwner = user.id === id;
+
   const { data: viewerProfile } = await supabase
     .from('profiles')
     .select('status')
     .eq('id', user.id)
     .single();
 
-  if (!viewerProfile || viewerProfile.status !== 'active') {
+  // Non-active users can only view their own profile
+  if (!viewerProfile || (viewerProfile.status !== 'active' && !isOwner)) {
     return (
       <div className="mx-auto max-w-[720px] px-6 py-16">
         <div className="rounded-lg border border-default bg-surface-100 p-8 text-center">
@@ -85,15 +88,14 @@ export default async function AlumniProfilePage(props: {
             Account pending approval
           </h2>
           <p className="mt-1 text-sm text-foreground-light">
-            Your account is awaiting admin approval.
+            Your account is awaiting admin approval. You can view your own profile but cannot browse other alumni yet.
           </p>
         </div>
       </div>
     );
   }
 
-  const isOwner = user.id === id;
-  const isAlumni = true; // verified active above
+  const isAlumni = viewerProfile.status === 'active';
 
   // Fetch all profile data in parallel
   const [

@@ -11,7 +11,7 @@ export type StepResult = {
   userId?: string;
 };
 
-/* ─── Step 1 — Create account + profile row ──────────────────── */
+/* ─── Step 1 — Create account (Supabase sends OTP automatically) ─ */
 
 export async function completeStep1(input: {
   full_name: string;
@@ -55,13 +55,65 @@ export async function completeStep1(input: {
   return { error: null, success: true, userId };
 }
 
+/* ─── Resend OTP ─────────────────────────────────────────────── */
+
+export async function resendVerificationOtp(input: {
+  email: string;
+}): Promise<StepResult> {
+  const supabase = await createClient();
+  const { error } = await supabase.auth.resend({ type: 'signup', email: input.email });
+  if (error) return { error: error.message, success: false };
+  return { error: null, success: true };
+}
+
+/* ─── Verify OTP + establish session ────────────────────────── */
+
+export async function verifyEmailOtp(input: {
+  email: string;
+  otp: string;
+}): Promise<StepResult> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.verifyOtp({
+    email: input.email,
+    token: input.otp.trim(),
+    type: 'signup',
+  });
+
+  if (error) {
+    return { error: error.message, success: false };
+  }
+
+  const userId = data.user?.id;
+  if (!userId) {
+    return { error: 'Verification failed. Please try again.', success: false };
+  }
+
+  await adminClient
+    .from('profiles')
+    .update({ status: 'pending_admin' })
+    .eq('id', userId);
+
+  return { error: null, success: true, userId };
+}
+
+/* ─── Skip step — advance registration_step without saving ───── */
+
+export async function skipStep(input: { userId: string; toStep: number }): Promise<StepResult> {
+  const { userId, toStep } = input;
+  await adminClient
+    .from('profiles')
+    .update({ registration_step: toStep })
+    .eq('id', userId);
+  return { error: null, success: true };
+}
+
 /* ─── Step 2 — Save degrees ──────────────────────────────────── */
 
 export async function completeStep2(input: {
   userId: string;
   selectedLevels: Array<'BS' | 'MS' | 'PhD'>;
   degreeValues: Partial<
-    Record<'BS' | 'MS' | 'PhD', { registration_no: string; intake_year: number; graduation_year: number }>
+    Record<'BS' | 'MS' | 'PhD', { registration_no: string; batch_no?: number }>
   >;
 }): Promise<StepResult> {
   const { userId, selectedLevels, degreeValues } = input;
@@ -73,40 +125,35 @@ export async function completeStep2(input: {
   for (const level of selectedLevels) {
     const dv = degreeValues[level];
     if (!dv || !dv.registration_no?.trim()) {
-      return { error: `Please fill in all fields for ${level}.`, success: false };
+      return { error: `Please enter a registration number for ${level}.`, success: false };
     }
-    if (dv.graduation_year && dv.intake_year && dv.graduation_year < dv.intake_year) {
-      return { error: `${level}: Graduation year must be ≥ intake year.`, success: false };
+    if (level === 'BS' && !dv.batch_no) {
+      return { error: `Please select your batch for ${level}.`, success: false };
     }
+
+    const intakeYear = dv.batch_no ? 1998 + dv.batch_no : 0;
+    // graduation_year must satisfy the DB check (graduation_year >= intake_year)
+    // We set it equal to intake_year since we no longer collect it
+    const graduationYear = intakeYear;
 
     await adminClient.from('degrees').upsert(
       {
         profile_id: userId,
         level,
         registration_no: dv.registration_no.trim(),
-        intake_year: dv.intake_year || 0,
-        graduation_year: dv.graduation_year || 0,
+        intake_year: intakeYear,
+        graduation_year: graduationYear,
       },
       { onConflict: 'profile_id,level' },
     );
   }
 
-  // Delete unchecked degrees
-  const toDelete = ['BS', 'MS', 'PhD'].filter(
-    (l) => !selectedLevels.includes(l as 'BS' | 'MS' | 'PhD'),
-  );
+  const toDelete = (['BS', 'MS', 'PhD'] as const).filter((l) => !selectedLevels.includes(l));
   if (toDelete.length > 0) {
-    await adminClient
-      .from('degrees')
-      .delete()
-      .eq('profile_id', userId)
-      .in('level', toDelete);
+    await adminClient.from('degrees').delete().eq('profile_id', userId).in('level', toDelete);
   }
 
-  await adminClient
-    .from('profiles')
-    .update({ registration_step: 2 })
-    .eq('id', userId);
+  await adminClient.from('profiles').update({ registration_step: 2 }).eq('id', userId);
 
   return { error: null, success: true };
 }
@@ -152,7 +199,6 @@ export async function completeStep4(input: {
 }): Promise<StepResult> {
   const { userId, employment } = input;
 
-  // Clear existing and re-insert
   await adminClient.from('employment_history').delete().eq('profile_id', userId);
 
   if (employment && employment.length > 0) {
@@ -169,57 +215,54 @@ export async function completeStep4(input: {
     }
   }
 
-  await adminClient
-    .from('profiles')
-    .update({ registration_step: 4 })
-    .eq('id', userId);
+  await adminClient.from('profiles').update({ registration_step: 4 }).eq('id', userId);
 
   return { error: null, success: true };
 }
 
-/* ─── Step 5 — Save skills ───────────────────────────────────── */
+/* ─── Step 5 — Save achievements + skills ────────────────────── */
 
 export async function completeStep5(input: {
   userId: string;
+  achievements: Array<{ title: string; year?: number; description?: string }>;
   skills: string[];
 }): Promise<StepResult> {
-  const { userId, skills } = input;
+  const { userId, achievements, skills } = input;
 
-  // Clear existing
+  // Save achievements
+  await adminClient.from('career_highlights').delete().eq('profile_id', userId);
+  if (achievements && achievements.length > 0) {
+    for (let i = 0; i < achievements.length; i++) {
+      const a = achievements[i];
+      if (!a.title?.trim()) continue;
+      await adminClient.from('career_highlights').insert({
+        profile_id: userId,
+        title: a.title.trim(),
+        year: a.year || null,
+        description: a.description?.trim() || null,
+        sort_order: i,
+      });
+    }
+  }
+
+  // Save skills
   await adminClient.from('profile_skills').delete().eq('profile_id', userId);
-
   if (skills && skills.length > 0) {
     const unique = Array.from(new Set(skills.map((s) => s.trim()).filter(Boolean))).slice(0, 20);
     for (const name of unique) {
-      const { data: existing } = await adminClient
-        .from('skills')
-        .select('id')
-        .ilike('name', name)
-        .maybeSingle();
-
+      const { data: existing } = await adminClient.from('skills').select('id').ilike('name', name).maybeSingle();
       let skillId = existing?.id;
       if (!skillId) {
-        const { data: created } = await adminClient
-          .from('skills')
-          .insert({ name, is_predefined: false })
-          .select('id')
-          .single();
+        const { data: created } = await adminClient.from('skills').insert({ name, is_predefined: false }).select('id').single();
         skillId = created?.id;
       }
-
       if (skillId) {
-        await adminClient.from('profile_skills').insert({
-          profile_id: userId,
-          skill_id: skillId,
-        });
+        await adminClient.from('profile_skills').insert({ profile_id: userId, skill_id: skillId });
       }
     }
   }
 
-  await adminClient
-    .from('profiles')
-    .update({ registration_step: 5 })
-    .eq('id', userId);
+  await adminClient.from('profiles').update({ registration_step: 5 }).eq('id', userId);
 
   return { error: null, success: true };
 }
@@ -252,7 +295,7 @@ export async function completeStep6(input: {
     phone: privacy_phone || 'private',
     postal_address: privacy_postal_address || 'private',
     city: privacy_city || 'alumni_only',
-    employment: privacy_employment || 'public',
+    employment: privacy_employment || 'alumni_only',
   };
 
   await adminClient
