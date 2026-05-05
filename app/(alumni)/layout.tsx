@@ -37,7 +37,7 @@ export default function AlumniLayout({ children }: { children: ReactNode }) {
             className={`truncate text-sm font-medium text-foreground transition-opacity ${collapsed ? 'w-0 opacity-0' : 'w-auto opacity-100'
               }`}
           >
-            CSE Alumni
+            DCSE Alumni Association
           </p>
           <button
             aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}

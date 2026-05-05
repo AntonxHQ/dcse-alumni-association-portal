@@ -78,7 +78,7 @@ export function AdminSidebar({
         {!collapsed && (
           <div className="flex min-w-0 items-center gap-2">
             <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-sm bg-brand" />
-            <span className="truncate text-sm font-medium text-foreground">CSE Alumni</span>
+            <span className="truncate text-sm font-medium text-foreground">DCSE Alumni Association</span>
           </div>
         )}
         <button

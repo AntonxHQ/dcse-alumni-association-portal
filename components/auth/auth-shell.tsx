@@ -15,8 +15,8 @@ export function AuthShell({ title, subtitle, children, wide }: AuthShellProps) {
           }`}
       >
         <div className="mb-8 flex items-center gap-2">
-          <div className="h-6 w-6 rounded-sm bg-brand" />
-          <p className="text-base font-medium text-foreground">CSE Alumni Portal</p>
+          <span className="flex h-6 w-6 items-center justify-center rounded-sm bg-brand text-xs font-bold text-foreground-contrast select-none">D</span>
+          <p className="text-base font-medium text-foreground">DCSE Alumni Association</p>
         </div>
         <h1 className="text-lg font-medium text-foreground">{title}</h1>
         {subtitle ? <p className="mb-6 mt-1 text-sm text-foreground-light">{subtitle}</p> : null}
